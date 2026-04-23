@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -9,7 +11,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _emailController = TextEditingController();
+  final _nikController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
@@ -20,44 +22,42 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final email = _emailController.text.trim();
+      final nik = _nikController.text.trim();
       final password = _passwordController.text.trim();
 
-      if (email.isEmpty || password.isEmpty) {
+      if (nik.isEmpty || password.isEmpty) {
         throw 'Please fill in all fields';
       }
 
-      await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
-        password: password,
+      final baseUrl = dotenv.env['BASE_URL'] ?? 'http://localhost:8080';
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'NIK': nik,
+          'password': password,
+        }),
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Login Successful!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // Navigation logic here
-        Navigator.pushReplacementNamed(context, '/home');
-      }
-    } on AuthException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error.message),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (response.statusCode == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Login Successful!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // Navigation logic here
+          Navigator.pushReplacementNamed(context, '/home');
+        } else {
+          final errorData = jsonDecode(response.body);
+          throw errorData['message'] ?? 'Login failed';
+        }
       }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $error'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $error'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -101,10 +101,10 @@ class _LoginPageState extends State<LoginPage> {
                 child: Column(
                   children: [
                     _buildTextField(
-                      controller: _emailController,
-                      label: 'Email Address',
-                      icon: Icons.email_outlined,
-                      hint: 'Enter your email',
+                      controller: _nikController,
+                      label: 'NIK',
+                      icon: Icons.person_outline,
+                      hint: 'Enter your NIK',
                     ),
                     const SizedBox(height: 20),
                     _buildTextField(
@@ -135,18 +135,14 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 30),
-                    _isLoading 
-                      ? const Center(child: CircularProgressIndicator())
-                      : _buildLoginButton(),
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _buildLoginButton(),
                     const SizedBox(height: 30),
-                    _buildDivider(),
-                    const SizedBox(height: 30),
-                    _buildSocialLogin(),
                   ],
                 ),
               ),
               const Spacer(),
-              _buildSignUpLink(),
               const SizedBox(height: 40),
             ],
           ),
@@ -297,76 +293,6 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildDivider() {
-    return Row(
-      children: [
-        const Expanded(child: Divider()),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 15),
-          child: Text(
-            'Or continue with',
-            style: TextStyle(color: Colors.grey.shade500),
-          ),
-        ),
-        const Expanded(child: Divider()),
-      ],
-    );
-  }
-
-  Widget _buildSocialLogin() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _socialIcon('assets/google.png', Colors.white),
-        const SizedBox(width: 20),
-        _socialIcon('assets/facebook.png', const Color(0xFF1877F2)),
-      ],
-    );
-  }
-
-  Widget _socialIcon(String asset, Color bgColor) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: const Icon(Icons.android, size: 28), // Placeholder for real icons
-    );
-  }
-
-  Widget _buildSignUpLink() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          "Don't have an account? ",
-          style: TextStyle(color: Colors.grey.shade600),
-        ),
-        GestureDetector(
-          onTap: () {
-            Navigator.pushNamed(context, '/register');
-          },
-          child: const Text(
-            'Sign Up',
-            style: TextStyle(
-              color: Color(0xFF2E7D32),
-              fontWeight: FontWeight.bold,
-              decoration: TextDecoration.underline,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
