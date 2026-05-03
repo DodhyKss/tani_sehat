@@ -1,43 +1,86 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/api_service.dart';
+import 'warga/dashboard_page.dart';
+import 'warga/chat_inbox_page.dart';
+import 'warga/health_page.dart';
+import 'warga/edukasi_page.dart';
+import 'warga/profile_page.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final user = Supabase.instance.client.auth.currentUser;
+  State<HomePage> createState() => _HomePageState();
+}
 
+class _HomePageState extends State<HomePage> {
+  int _currentIndex = 0;
+
+  final List<Widget> _pages = const [
+    DashboardPage(),
+    HealthPage(),
+    ChatInboxPage(),
+    EdukasiPage(),
+    ProfilePage(),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      await ApiService().getMe();
+      if (mounted) setState(() {});
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('TaniSehat Home'),
-        actions: [
-          IconButton(
-            onPressed: () async {
-              await Supabase.instance.client.auth.signOut();
-              if (context.mounted) {
-                Navigator.pushReplacementNamed(context, '/login');
-              }
-            },
-            icon: const Icon(Icons.logout),
-          ),
-        ],
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _pages,
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.eco, size: 100, color: Colors.green),
-            const SizedBox(height: 20),
-            Text(
-              'Welcome to TaniSehat!',
-              style: Theme.of(context).textTheme.headlineMedium,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
             ),
-            const SizedBox(height: 10),
-            Text('Logged in as: ${user?.email ?? 'Unknown'}'),
           ],
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) => setState(() => _currentIndex = index),
+            items: [
+              _buildNavItem(Icons.dashboard_rounded, 'Beranda'),
+              _buildNavItem(Icons.favorite_rounded, 'Kesehatan'),
+              _buildNavItem(Icons.chat_bubble_rounded, 'Chat'),
+              _buildNavItem(Icons.school_rounded, 'Edukasi'),
+              _buildNavItem(Icons.person_rounded, 'Profil'),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  BottomNavigationBarItem _buildNavItem(IconData icon, String label) {
+    return BottomNavigationBarItem(icon: Icon(icon), label: label);
   }
 }
