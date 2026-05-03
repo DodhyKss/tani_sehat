@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
@@ -32,7 +34,16 @@ class _EdukasiPageState extends State<EdukasiPage> with SingleTickerProviderStat
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final result = await _api.getRekomendasi();
+      final meResult = await _api.getMe();
+      String? katTd;
+      String? katGad;
+      if (meResult['success'] == true) {
+        final status = meResult['data']?['status_kesehatan'];
+        katTd = status?['kategori_td'];
+        katGad = status?['kategori_gad'];
+      }
+      
+      final result = await _api.getRekomendasi(kategoriTd: katTd, kategoriGad: katGad);
       if (result['success'] == true) {
         _rekomendasi = result['data'] ?? {};
       }
@@ -82,7 +93,7 @@ class _EdukasiPageState extends State<EdukasiPage> with SingleTickerProviderStat
   }
 
   Widget _buildVideoTab() {
-    final videos = _rekomendasi['video'] as List? ?? [];
+    final videos = _rekomendasi['videos'] as List? ?? [];
     if (videos.isEmpty) return const EmptyState(icon: Icons.videocam_off, title: 'Belum ada video');
     return RefreshIndicator(
       onRefresh: _loadData,
@@ -91,45 +102,14 @@ class _EdukasiPageState extends State<EdukasiPage> with SingleTickerProviderStat
         itemCount: videos.length,
         itemBuilder: (_, i) {
           final v = videos[i];
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: AppTheme.shadowSm,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  height: 160,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.primaryGradient,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  ),
-                  child: const Center(child: Icon(Icons.play_circle_filled, size: 56, color: Colors.white)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(v['judul'] ?? '', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
-                    const SizedBox(height: 8),
-                    Row(children: [
-                      _tag(v['kategori_td'] ?? '', AppTheme.danger),
-                      const SizedBox(width: 6),
-                      _tag(v['kategori_gad'] ?? '', AppTheme.info),
-                    ]),
-                  ]),
-                ),
-              ],
-            ),
-          );
+          return YoutubeVideoItem(videoData: v);
         },
       ),
     );
   }
 
   Widget _buildMateriTab() {
-    final materiList = _rekomendasi['materi'] as List? ?? [];
+    final materiList = _rekomendasi['materis'] as List? ?? [];
     if (materiList.isEmpty) return const EmptyState(icon: Icons.article_outlined, title: 'Belum ada materi');
     return RefreshIndicator(
       onRefresh: _loadData,
@@ -138,29 +118,61 @@ class _EdukasiPageState extends State<EdukasiPage> with SingleTickerProviderStat
         itemCount: materiList.length,
         itemBuilder: (_, i) {
           final m = materiList[i];
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: AppTheme.shadowSm,
-            ),
-            child: Row(children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.accentWarm.withOpacity(0.12), borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.article_rounded, color: AppTheme.accentWarm, size: 24),
+          return InkWell(
+            onTap: () {
+              final path = m['file_path'] ?? '';
+              if (path.isEmpty) return;
+              final url = Uri.parse('${_api.baseUrl}/file?path=$path');
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  title: const Row(
+                    children: [
+                      Icon(Icons.picture_as_pdf, color: AppTheme.danger),
+                      SizedBox(width: 8),
+                      Text('Buka Materi PDF'),
+                    ],
+                  ),
+                  content: Text('Apakah Anda ingin mengunduh dan membaca dokumen "${m['judul'] ?? 'Materi'}" ini?'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        launchUrl(url, mode: LaunchMode.externalApplication);
+                      },
+                      child: const Text('Buka PDF'),
+                    ),
+                  ]
+                )
+              );
+            },
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: AppTheme.shadowSm,
               ),
-              const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(m['judul'] ?? m['nama'] ?? 'Materi',
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
-                const SizedBox(height: 4),
-                Text(m['deskripsi'] ?? '', style: const TextStyle(fontSize: 12, color: AppTheme.textMedium),
-                  maxLines: 2, overflow: TextOverflow.ellipsis),
-              ])),
-            ]),
+              child: Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentWarm.withOpacity(0.12), borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.article_rounded, color: AppTheme.accentWarm, size: 24),
+                ),
+                const SizedBox(width: 14),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(m['judul'] ?? m['nama'] ?? 'Materi',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
+                  const SizedBox(height: 4),
+                  Text(m['deskripsi'] ?? '', style: const TextStyle(fontSize: 12, color: AppTheme.textMedium),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                ])),
+              ]),
+            ),
           );
         },
       ),
@@ -168,7 +180,7 @@ class _EdukasiPageState extends State<EdukasiPage> with SingleTickerProviderStat
   }
 
   Widget _buildGambarTab() {
-    final gambarList = _rekomendasi['gambar'] as List? ?? [];
+    final gambarList = _rekomendasi['gambars'] as List? ?? [];
     if (gambarList.isEmpty) return const EmptyState(icon: Icons.image_not_supported, title: 'Belum ada gambar');
     return RefreshIndicator(
       onRefresh: _loadData,
@@ -181,8 +193,36 @@ class _EdukasiPageState extends State<EdukasiPage> with SingleTickerProviderStat
         itemBuilder: (_, i) {
           final g = gambarList[i];
           final imageUrl = g['file_path'] ?? g['url'] ?? '';
-          return Container(
-            decoration: BoxDecoration(
+          final fullUrl = imageUrl.isNotEmpty ? '${_api.baseUrl}/file?path=$imageUrl' : '';
+          return InkWell(
+            onTap: () {
+              if (fullUrl.isEmpty) return;
+              showDialog(
+                context: context,
+                builder: (ctx) => Dialog(
+                  backgroundColor: Colors.transparent,
+                  insetPadding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.network(fullUrl, fit: BoxFit.contain),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close),
+                        label: const Text('Tutup'),
+                      )
+                    ]
+                  )
+                )
+              );
+            },
+            child: Container(
+              decoration: BoxDecoration(
               color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: AppTheme.shadowSm,
             ),
             child: Column(
@@ -195,10 +235,10 @@ class _EdukasiPageState extends State<EdukasiPage> with SingleTickerProviderStat
                       color: AppTheme.surface,
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                     ),
-                    child: imageUrl.isNotEmpty
+                    child: fullUrl.isNotEmpty
                         ? ClipRRect(
                             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                            child: Image.network(imageUrl, fit: BoxFit.cover,
+                            child: Image.network(fullUrl, fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.image, size: 40, color: AppTheme.textLight))),
                           )
                         : const Center(child: Icon(Icons.image, size: 40, color: AppTheme.textLight)),
@@ -211,14 +251,15 @@ class _EdukasiPageState extends State<EdukasiPage> with SingleTickerProviderStat
                 ),
               ],
             ),
-          );
-        },
+          ),
+        );
+      },
       ),
     );
   }
 
   Widget _buildOlahragaTab() {
-    final olahragaList = _rekomendasi['olahraga'] as List? ?? [];
+    final olahragaList = _rekomendasi['olahragas'] as List? ?? [];
     if (olahragaList.isEmpty) return const EmptyState(icon: Icons.fitness_center, title: 'Belum ada rekomendasi olahraga');
     return RefreshIndicator(
       onRefresh: _loadData,
@@ -264,6 +305,125 @@ class _EdukasiPageState extends State<EdukasiPage> with SingleTickerProviderStat
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
       child: Text(text.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+    );
+  }
+}
+
+class YoutubeVideoItem extends StatelessWidget {
+  final Map videoData;
+  const YoutubeVideoItem({Key? key, required this.videoData}) : super(key: key);
+
+  Widget _tag(String text, Color color) {
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+      child: Text(text.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+    );
+  }
+
+  void _showVideoModal(BuildContext context, String videoId) {
+    final controller = YoutubePlayerController.fromVideoId(
+      videoId: videoId,
+      autoPlay: true,
+      params: const YoutubePlayerParams(
+        showControls: true,
+        showFullscreenButton: true,
+      ),
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: YoutubePlayer(
+                controller: controller,
+                aspectRatio: 16 / 9,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(ctx),
+              icon: const Icon(Icons.close),
+              label: const Text('Tutup Video'),
+            )
+          ]
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final url = videoData['link_embed'] ?? '';
+    String? videoId;
+    
+    // Simple regex to extract video ID
+    RegExp regExp = RegExp(
+      r"(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^""&?\/\s]{11})",
+      caseSensitive: false,
+      multiLine: false,
+    );
+    
+    final match = regExp.firstMatch(url);
+    if (match != null && match.groupCount >= 1) {
+      videoId = match.group(1);
+    }
+
+    if (videoId == null && url.contains('/embed/')) {
+      final parts = url.split('/embed/');
+      if (parts.length > 1) {
+        videoId = parts[1].split('?').first;
+      }
+    }
+
+    return InkWell(
+      onTap: () {
+        if (videoId != null && videoId.isNotEmpty) {
+          _showVideoModal(context, videoId);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Video tidak valid atau tidak didukung.')));
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: AppTheme.shadowSm,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 160,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: AppTheme.primaryGradient,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: const Center(child: Icon(Icons.play_circle_fill, size: 56, color: Colors.white)),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(videoData['judul'] ?? '', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+                const SizedBox(height: 8),
+                Row(children: [
+                  _tag(videoData['kategori_td'] ?? '', AppTheme.danger),
+                  const SizedBox(width: 6),
+                  _tag(videoData['kategori_gad'] ?? '', AppTheme.info),
+                ]),
+              ]),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

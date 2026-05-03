@@ -218,8 +218,11 @@ class ApiService {
   //  REKOMENDASI & EDUKASI
   // ========================
 
-  Future<Map<String, dynamic>> getRekomendasi() async {
-    final response = await http.get(Uri.parse('$baseUrl/rekomendasi'), headers: _headers);
+  Future<Map<String, dynamic>> getRekomendasi({String? kategoriTd, String? kategoriGad}) async {
+    String url = '$baseUrl/rekomendasi?';
+    if (kategoriTd != null) url += 'kategori_td=$kategoriTd&';
+    if (kategoriGad != null) url += 'kategori_gad=$kategoriGad';
+    final response = await http.get(Uri.parse(url), headers: _headers);
     return jsonDecode(response.body);
   }
 
