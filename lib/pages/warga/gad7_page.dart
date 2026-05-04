@@ -16,6 +16,8 @@ class _GAD7PageState extends State<GAD7Page> with SingleTickerProviderStateMixin
   bool _isLoadingQuestions = true;
   bool _isLoadingHistory = true;
   bool _isSaving = false;
+  bool _isWaiting = false;
+  String? _nextCek;
   List<dynamic> _questions = [];
   List<dynamic> _history = [];
   Map<int, int> _answers = {};
@@ -26,8 +28,21 @@ class _GAD7PageState extends State<GAD7Page> with SingleTickerProviderStateMixin
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _checkSchedule();
     _loadQuestions();
     _loadHistory();
+  }
+
+  Future<void> _checkSchedule() async {
+    try {
+      final res = await _api.cekJadwal('gad7');
+      if (res['success'] == true) {
+        setState(() {
+          _isWaiting = res['data']?['gad7']?['is_waiting'] ?? false;
+          _nextCek = res['data']?['gad7']?['next_cek'];
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -84,22 +99,83 @@ class _GAD7PageState extends State<GAD7Page> with SingleTickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Kuesioner GAD-7'),
-        leading: IconButton(icon: const Icon(Icons.arrow_back_ios_rounded), onPressed: () => Navigator.pop(context)),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AppTheme.primary,
-          unselectedLabelColor: AppTheme.textLight,
-          indicatorColor: AppTheme.primary,
-          tabs: const [Tab(text: 'Kuesioner'), Tab(text: 'Riwayat')],
-        ),
+      body: Column(
+        children: [
+          const GradientHeader(
+            title: 'Kuesioner GAD-7',
+            subtitle: 'Deteksi dini tingkat kecemasan Anda',
+            showBackButton: true,
+          ),
+          Container(
+            color: Colors.white,
+            child: TabBar(
+              controller: _tabController,
+              labelColor: AppTheme.primary,
+              unselectedLabelColor: AppTheme.textLight,
+              indicatorColor: AppTheme.primary,
+              tabs: const [Tab(text: 'Kuesioner'), Tab(text: 'Riwayat')],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController, 
+              children: [_buildQuestionTab(), _buildHistoryTab()]
+            ),
+          ),
+        ],
       ),
-      body: TabBarView(controller: _tabController, children: [_buildQuestionTab(), _buildHistoryTab()]),
     );
   }
 
   Widget _buildQuestionTab() {
+    if (_isWaiting) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentWarm.withAlpha(20),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.timer_rounded, color: AppTheme.accentWarm, size: 64),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Belum Waktunya Mengisi',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textDark),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Anda sudah melakukan pengisian untuk jadwal ini. Silakan kembali lagi sesuai jadwal berikutnya.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppTheme.textMedium, height: 1.5),
+              ),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppTheme.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.primary.withAlpha(30)),
+                ),
+                child: Column(
+                  children: [
+                    const Text('Jadwal Pengisian Berikutnya:', style: TextStyle(fontSize: 12, color: AppTheme.textLight)),
+                    const SizedBox(height: 4),
+                    Text(_nextCek ?? 'Segera', style: const TextStyle(fontWeight: FontWeight.w700, color: AppTheme.primary, fontSize: 16)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
     if (_isLoadingQuestions) return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
     if (_questions.isEmpty) return const EmptyState(icon: Icons.quiz, title: 'Belum ada kuesioner');
 

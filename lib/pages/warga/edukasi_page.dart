@@ -1,6 +1,9 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
@@ -122,32 +125,10 @@ class _EdukasiPageState extends State<EdukasiPage> with SingleTickerProviderStat
             onTap: () {
               final path = m['file_path'] ?? '';
               if (path.isEmpty) return;
-              final url = Uri.parse('${_api.baseUrl}/file?path=$path');
-              showDialog(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  title: const Row(
-                    children: [
-                      Icon(Icons.picture_as_pdf, color: AppTheme.danger),
-                      SizedBox(width: 8),
-                      Text('Buka Materi PDF'),
-                    ],
-                  ),
-                  content: Text('Apakah Anda ingin mengunduh dan membaca dokumen "${m['judul'] ?? 'Materi'}" ini?'),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        launchUrl(url, mode: LaunchMode.externalApplication);
-                      },
-                      child: const Text('Buka PDF'),
-                    ),
-                  ]
-                )
-              );
+              // Encode only spaces to avoid issues with slashes being encoded by encodeComponent
+              final safePath = path.replaceAll(' ', '%20');
+              final url = '${_api.baseUrl}/file?path=$safePath';
+              _showPdfViewer(context, url, m['judul'] ?? 'Materi');
             },
             child: Container(
               margin: const EdgeInsets.only(bottom: 12),
@@ -286,11 +267,14 @@ class _EdukasiPageState extends State<EdukasiPage> with SingleTickerProviderStat
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(o['nama_olahraga'] ?? '', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
                 const SizedBox(height: 6),
-                Row(children: [
-                  _tag(o['kategori_td'] ?? '', AppTheme.danger),
-                  const SizedBox(width: 6),
-                  _tag(o['kategori_gad'] ?? '', AppTheme.info),
-                ]),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    _tag(o['kategori_td'] ?? '', AppTheme.danger),
+                    _tag(o['kategori_gad'] ?? '', AppTheme.info),
+                  ],
+                ),
               ])),
             ]),
           );
@@ -306,6 +290,84 @@ class _EdukasiPageState extends State<EdukasiPage> with SingleTickerProviderStat
       decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
       child: Text(text.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color)),
     );
+  }
+
+  void _showPdfViewer(BuildContext context, String url, String title) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            backgroundColor: AppTheme.primary,
+            foregroundColor: Colors.white,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.pop(context),
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.open_in_browser),
+                tooltip: 'Buka di Browser',
+                onPressed: () async {
+                  final uri = Uri.parse(url);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+              ),
+            ],
+          ),
+          body: FutureBuilder<Uint8List>(
+            future: _fetchPdfBytes(url),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
+              }
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline, size: 48, color: AppTheme.danger),
+                        const SizedBox(height: 16),
+                        Text('Gagal memuat PDF: ${snapshot.error}', textAlign: TextAlign.center),
+                        const SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: () {
+                            final uri = Uri.parse(url);
+                            launchUrl(uri, mode: LaunchMode.externalApplication);
+                          },
+                          child: const Text('Buka di Browser Saja'),
+                        )
+                      ],
+                    ),
+                  ),
+                );
+              }
+              if (!snapshot.hasData) return const Center(child: Text('Tidak ada data PDF'));
+              
+              return SfPdfViewer.memory(snapshot.data!);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<Uint8List> _fetchPdfBytes(String url) async {
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      final contentType = response.headers['content-type'] ?? '';
+      if (!contentType.toLowerCase().contains('pdf') && response.bodyBytes.length < 1000) {
+        throw Exception('Data yang diterima bukan PDF yang valid.');
+      }
+      return response.bodyBytes;
+    } else {
+      throw Exception('Server merespon dengan status: ${response.statusCode}');
+    }
   }
 }
 
@@ -414,11 +476,14 @@ class YoutubeVideoItem extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(videoData['judul'] ?? '', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
                 const SizedBox(height: 8),
-                Row(children: [
-                  _tag(videoData['kategori_td'] ?? '', AppTheme.danger),
-                  const SizedBox(width: 6),
-                  _tag(videoData['kategori_gad'] ?? '', AppTheme.info),
-                ]),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    _tag(videoData['kategori_td'] ?? '', AppTheme.danger),
+                    _tag(videoData['kategori_gad'] ?? '', AppTheme.info),
+                  ],
+                ),
               ]),
             ),
           ],

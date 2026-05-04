@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
@@ -11,6 +12,13 @@ class ApiService {
 
   String? _token;
   Map<String, dynamic>? _currentUser;
+  
+  // Global refresh notifier
+  static final ValueNotifier<int> refreshNotifier = ValueNotifier<int>(0);
+  
+  void notifyRefresh() {
+    refreshNotifier.value++;
+  }
 
   String? get token => _token;
   Map<String, dynamic>? get currentUser => _currentUser;
@@ -155,7 +163,9 @@ class ApiService {
       headers: _headers,
       body: jsonEncode({'systolic': systolic, 'diastolic': diastolic}),
     );
-    return jsonDecode(response.body);
+    final data = jsonDecode(response.body);
+    if (data['success'] == true) notifyRefresh();
+    return data;
   }
 
   Future<Map<String, dynamic>> storeGAD(int skor, List<Map<String, dynamic>> jawaban) async {
@@ -164,7 +174,9 @@ class ApiService {
       headers: _headers,
       body: jsonEncode({'skor': skor, 'jawaban': jawaban}),
     );
-    return jsonDecode(response.body);
+    final data = jsonDecode(response.body);
+    if (data['success'] == true) notifyRefresh();
+    return data;
   }
 
   Future<List<dynamic>> getRiwayatTD() async {
@@ -186,24 +198,31 @@ class ApiService {
   Future<List<dynamic>> getReproduksi() async {
     final response = await http.get(Uri.parse('$baseUrl/reproduksi'), headers: _headers);
     final data = jsonDecode(response.body);
-    return data['success'] == true ? data['data'] : [];
+    if (data['success'] == true) {
+      // Laravel pagination returns the list in data['data']['data']
+      if (data['data'] is Map && data['data']['data'] is List) {
+        return data['data']['data'];
+      }
+      return data['data'] is List ? data['data'] : [];
+    }
+    return [];
   }
 
   Future<Map<String, dynamic>> storeReproduksi({
-    required int jumlahAnak,
-    required String penggunaanKb,
-    required String masalahReproduksi,
+    required String keterangan,
+    required String tglMenstruasi,
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/reproduksi'),
       headers: _headers,
       body: jsonEncode({
-        'jumlah_anak': jumlahAnak,
-        'penggunaan_kb': penggunaanKb,
-        'masalah_reproduksi': masalahReproduksi,
+        'keterangan': keterangan,
+        'tgl_menstruasi': tglMenstruasi,
       }),
     );
-    return jsonDecode(response.body);
+    final data = jsonDecode(response.body);
+    if (data['success'] == true) notifyRefresh();
+    return data;
   }
 
   Future<Map<String, dynamic>> deleteReproduksi(int id) async {

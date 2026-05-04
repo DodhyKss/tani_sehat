@@ -57,9 +57,8 @@ class _ReproduksiPageState extends State<ReproduksiPage> {
   }
 
   void _showAddDialog() {
-    final anakCtrl = TextEditingController();
-    final kbCtrl = TextEditingController();
-    final masalahCtrl = TextEditingController();
+    final tglCtrl = TextEditingController();
+    final ketCtrl = TextEditingController();
 
     showModalBottomSheet(
       context: context,
@@ -77,19 +76,35 @@ class _ReproduksiPageState extends State<ReproduksiPage> {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
             const SizedBox(height: 20),
             TextField(
-              controller: anakCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Jumlah Anak', prefixIcon: Icon(Icons.child_care)),
+              controller: tglCtrl,
+              readOnly: true,
+              onTap: () async {
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: DateTime.now(),
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime.now(),
+                  builder: (context, child) {
+                    return Theme(
+                      data: Theme.of(context).copyWith(
+                        colorScheme: const ColorScheme.light(
+                          primary: AppTheme.primary,
+                        ),
+                      ),
+                      child: child!,
+                    );
+                  },
+                );
+                if (date != null) {
+                  tglCtrl.text = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+                }
+              },
+              decoration: const InputDecoration(labelText: 'Tanggal Menstruasi', prefixIcon: Icon(Icons.calendar_today)),
             ),
             const SizedBox(height: 14),
             TextField(
-              controller: kbCtrl,
-              decoration: const InputDecoration(labelText: 'Penggunaan KB', prefixIcon: Icon(Icons.medical_services_outlined)),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: masalahCtrl,
-              decoration: const InputDecoration(labelText: 'Masalah Reproduksi', prefixIcon: Icon(Icons.note_alt_outlined)),
+              controller: ketCtrl,
+              decoration: const InputDecoration(labelText: 'Keterangan', prefixIcon: Icon(Icons.note_alt_outlined)),
               maxLines: 2,
             ),
             const SizedBox(height: 24),
@@ -98,16 +113,14 @@ class _ReproduksiPageState extends State<ReproduksiPage> {
               height: 50,
               child: ElevatedButton(
                 onPressed: () async {
-                  final anak = int.tryParse(anakCtrl.text.trim());
-                  if (anak == null) {
-                    AppToast.error(context, 'Jumlah anak harus angka');
+                  if (tglCtrl.text.trim().isEmpty || ketCtrl.text.trim().isEmpty) {
+                    AppToast.error(context, 'Tanggal dan keterangan harus diisi');
                     return;
                   }
                   try {
                     final result = await _api.storeReproduksi(
-                      jumlahAnak: anak,
-                      penggunaanKb: kbCtrl.text.trim(),
-                      masalahReproduksi: masalahCtrl.text.trim(),
+                      keterangan: ketCtrl.text.trim(),
+                      tglMenstruasi: tglCtrl.text.trim(),
                     );
                     if (mounted) {
                       Navigator.pop(ctx);
@@ -130,28 +143,32 @@ class _ReproduksiPageState extends State<ReproduksiPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Data Reproduksi'),
-        leading: IconButton(icon: const Icon(Icons.arrow_back_ios_rounded), onPressed: () => Navigator.pop(context)),
-      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddDialog,
         backgroundColor: AppTheme.primary,
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('Tambah', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
-          : _data.isEmpty
-              ? const EmptyState(icon: Icons.pregnant_woman_rounded, title: 'Belum ada data', subtitle: 'Tambahkan data reproduksi Anda')
-              : RefreshIndicator(
-                  onRefresh: _loadData,
-                  child: ListView.builder(
+      body: Column(
+        children: [
+          const GradientHeader(
+            title: 'Data Reproduksi',
+            subtitle: 'Catat dan pantau riwayat haid Anda',
+            showBackButton: true,
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+                : _data.isEmpty
+                    ? const EmptyState(icon: Icons.water_drop_rounded, title: 'Belum ada data', subtitle: 'Tambahkan data reproduksi Anda')
+                    : RefreshIndicator(
+                        onRefresh: _loadData,
+                        child: ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: _data.length,
                     itemBuilder: (_, i) {
                       final item = _data[i];
-                      final date = DateTime.tryParse(item['created_at'] ?? '');
+                      final date = DateTime.tryParse(item['tgl_input'] ?? item['created_at'] ?? '');
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(18),
@@ -168,14 +185,14 @@ class _ReproduksiPageState extends State<ReproduksiPage> {
                                   color: const Color(0xFFAB47BC).withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: const Icon(Icons.pregnant_woman_rounded, color: Color(0xFFAB47BC), size: 20),
+                                child: const Icon(Icons.water_drop, color: Color(0xFFAB47BC), size: 20),
                               ),
                               const SizedBox(width: 12),
                               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text('Jumlah Anak: ${item['jumlah_anak']}',
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                                Text('Tgl Menstruasi: ${_formatDate(item['tgl_menstruasi'])}',
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                                 if (date != null)
-                                  Text('${date.day}/${date.month}/${date.year}',
+                                  Text('Diinput pada: ${date.day}/${date.month}/${date.year}',
                                     style: const TextStyle(fontSize: 12, color: AppTheme.textLight)),
                               ])),
                               IconButton(
@@ -184,16 +201,31 @@ class _ReproduksiPageState extends State<ReproduksiPage> {
                               ),
                             ]),
                             const Divider(height: 20),
-                            _infoRow('KB', item['penggunaan_kb'] ?? '-'),
-                            const SizedBox(height: 6),
-                            _infoRow('Masalah', item['masalah_reproduksi'] ?? '-'),
+                            _infoRow('Ket', item['keterangan'] ?? '-'),
                           ],
                         ),
                       );
                     },
                   ),
                 ),
+          ),
+        ],
+      ),
     );
+  }
+
+  String _formatDate(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return '-';
+    try {
+      final date = DateTime.parse(dateStr);
+      return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    } catch (_) {
+      // Jika formatnya sudah dd/mm/yyyy atau format lain yang tidak bisa di-parse
+      if (dateStr.length > 10) {
+        return dateStr.substring(0, 10);
+      }
+      return dateStr;
+    }
   }
 
   Widget _infoRow(String label, String value) {

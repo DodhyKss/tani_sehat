@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 import '../services/api_service.dart';
 import 'warga/dashboard_page.dart';
 import 'warga/chat_inbox_page.dart';
@@ -66,7 +67,16 @@ class _HomePageState extends State<HomePage> {
           ),
           child: BottomNavigationBar(
             currentIndex: _currentIndex,
-            onTap: (index) => setState(() => _currentIndex = index),
+            onTap: (index) {
+              setState(() => _currentIndex = index);
+              _loadUserData(); // Refresh global user data
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.white,
+            selectedItemColor: AppTheme.primary,
+            unselectedItemColor: const Color(0xFF2D3436), // Clear dark color instead of grey
+            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
             items: [
               _buildNavItem(Icons.dashboard_rounded, 'Beranda'),
               _buildNavItem(Icons.favorite_rounded, 'Kesehatan'),

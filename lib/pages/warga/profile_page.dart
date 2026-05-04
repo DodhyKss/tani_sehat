@@ -14,11 +14,20 @@ class _ProfilePageState extends State<ProfilePage> {
   final _api = ApiService();
   bool _isLoading = true;
   Map<String, dynamic>? _user;
+  List<dynamic> _riwayatTD = [];
+  List<dynamic> _riwayatGAD = [];
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    ApiService.refreshNotifier.addListener(_loadProfile);
+  }
+
+  @override
+  void dispose() {
+    ApiService.refreshNotifier.removeListener(_loadProfile);
+    super.dispose();
   }
 
   Future<void> _loadProfile() async {
@@ -28,6 +37,13 @@ class _ProfilePageState extends State<ProfilePage> {
       if (result['success'] == true) {
         _user = result['data'];
       }
+
+      // Fetch latest history for real-time consistency
+      final tdList = await _api.getRiwayatTD();
+      _riwayatTD = tdList;
+      
+      final gadList = await _api.getRiwayatGAD();
+      _riwayatGAD = gadList;
     } catch (_) {}
     if (mounted) setState(() => _isLoading = false);
   }
@@ -88,45 +104,62 @@ class _ProfilePageState extends State<ProfilePage> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 30),
-      decoration: const BoxDecoration(
+      height: 170,
+      decoration: BoxDecoration(
         gradient: AppTheme.headerGradient,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(32),
-          bottomRight: Radius.circular(32),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(40),
+          bottomRight: Radius.circular(40),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primary.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            Container(
-              width: 90, height: 90,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: Colors.white.withOpacity(0.4), width: 3),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
+            children: [
+              Container(
+                width: 70, height: 70,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withOpacity(0.4), width: 2),
+                ),
+                child: Center(child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900),
+                )),
               ),
-              child: Center(child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.w800),
-              )),
-            ),
-            const SizedBox(height: 16),
-            Text(name, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 4),
-            Text('NIK: $nik', style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14)),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(20),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(name, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+                    Text('NIK: $nik', style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 13)),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withOpacity(0.3)),
+                      ),
+                      child: Text(role.toUpperCase(),
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
+                    ),
+                  ],
+                ),
               ),
-              child: Text(role.toUpperCase(),
-                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1)),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -134,7 +167,24 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildHealthSummary() {
     final status = _user?['status_kesehatan'];
-    if (status == null) return const SizedBox.shrink();
+    
+    // Try to get latest from history first
+    String tdValue = '-/-';
+    if (_riwayatTD.isNotEmpty) {
+      final latest = _riwayatTD.first;
+      tdValue = '${latest['systolic'] ?? '-'}/${latest['diastolic'] ?? '-'}';
+    } else if (status != null) {
+      tdValue = status['tekanan_darah'] ?? '-/-';
+    }
+
+    String gadValue = 'Skor: -';
+    if (_riwayatGAD.isNotEmpty) {
+      final latest = _riwayatGAD.first;
+      final skor = latest['skor'] ?? latest['total_skor'] ?? '-';
+      gadValue = 'Skor: $skor';
+    } else if (status != null) {
+      gadValue = 'Skor: ${status['skor_gad'] ?? '-'}';
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -150,9 +200,9 @@ class _ProfilePageState extends State<ProfilePage> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
             const SizedBox(height: 16),
             Row(children: [
-              Expanded(child: _statItem('Tekanan Darah', status['tekanan_darah'] ?? '-', Icons.bloodtype_rounded, AppTheme.danger)),
+              Expanded(child: _statItem('Tekanan Darah', tdValue, Icons.bloodtype_rounded, AppTheme.danger)),
               const SizedBox(width: 12),
-              Expanded(child: _statItem('GAD-7', 'Skor: ${status['skor_gad'] ?? '-'}', Icons.psychology_rounded, AppTheme.info)),
+              Expanded(child: _statItem('GAD-7', gadValue, Icons.psychology_rounded, AppTheme.info)),
             ]),
           ],
         ),

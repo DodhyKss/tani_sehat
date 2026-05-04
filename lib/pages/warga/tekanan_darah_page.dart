@@ -17,12 +17,15 @@ class _TekananDarahPageState extends State<TekananDarahPage> with SingleTickerPr
   final _diastolicCtrl = TextEditingController();
   bool _isSaving = false;
   bool _isLoadingHistory = true;
+  bool _isWaiting = false;
+  String? _nextCek;
   List<dynamic> _history = [];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _checkSchedule();
     _loadHistory();
   }
 
@@ -32,6 +35,18 @@ class _TekananDarahPageState extends State<TekananDarahPage> with SingleTickerPr
     _systolicCtrl.dispose();
     _diastolicCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkSchedule() async {
+    try {
+      final res = await _api.cekJadwal('td');
+      if (res['success'] == true) {
+        setState(() {
+          _isWaiting = res['data']?['td']?['is_waiting'] ?? false;
+          _nextCek = res['data']?['td']?['next_cek'];
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadHistory() async {
@@ -72,28 +87,83 @@ class _TekananDarahPageState extends State<TekananDarahPage> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tekanan Darah'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded),
-          onPressed: () => Navigator.pop(context),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AppTheme.primary,
-          unselectedLabelColor: AppTheme.textLight,
-          indicatorColor: AppTheme.primary,
-          tabs: const [Tab(text: 'Input'), Tab(text: 'Riwayat')],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [_buildInputTab(), _buildHistoryTab()],
+      body: Column(
+        children: [
+          const GradientHeader(
+            title: 'Tekanan Darah',
+            subtitle: 'Pantau kondisi jantung dan pembuluh darah',
+            showBackButton: true,
+          ),
+          Container(
+            color: Colors.white,
+            child: TabBar(
+              controller: _tabController,
+              labelColor: AppTheme.primary,
+              unselectedLabelColor: AppTheme.textLight,
+              indicatorColor: AppTheme.primary,
+              tabs: const [Tab(text: 'Input'), Tab(text: 'Riwayat')],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [_buildInputTab(), _buildHistoryTab()],
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildInputTab() {
+    if (_isWaiting) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentWarm.withAlpha(20),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.timer_rounded, color: AppTheme.accentWarm, size: 64),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Belum Waktunya Mengisi',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textDark),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Anda sudah melakukan pengisian untuk jadwal ini. Silakan kembali lagi sesuai jadwal berikutnya.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppTheme.textMedium, height: 1.5),
+              ),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppTheme.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.primary.withAlpha(30)),
+                ),
+                child: Column(
+                  children: [
+                    const Text('Jadwal Pengisian Berikutnya:', style: TextStyle(fontSize: 12, color: AppTheme.textLight)),
+                    const SizedBox(height: 4),
+                    Text(_nextCek ?? 'Segera', style: const TextStyle(fontWeight: FontWeight.w700, color: AppTheme.primary, fontSize: 16)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(

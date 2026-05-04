@@ -4,6 +4,7 @@ import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 import 'tekanan_darah_page.dart';
 import 'gad7_page.dart';
+import 'reproduksi_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -28,7 +29,16 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     _loadData();
+    ApiService.refreshNotifier.addListener(_loadData);
   }
+
+  @override
+  void dispose() {
+    ApiService.refreshNotifier.removeListener(_loadData);
+    super.dispose();
+  }
+
+  Map<String, dynamic>? _jadwalData;
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
@@ -41,10 +51,10 @@ class _DashboardPageState extends State<DashboardPage> {
 
       try {
         final jadwalStatus = await _api.cekJadwal('');
-        final data = jadwalStatus['data'];
-        if (data != null) {
-          _harusIsiTD = data['td']?['is_waiting'] == false;
-          _harusIsiGAD = data['gad7']?['is_waiting'] == false;
+        _jadwalData = jadwalStatus['data'];
+        if (_jadwalData != null) {
+          _harusIsiTD = _jadwalData?['td']?['is_waiting'] == false;
+          _harusIsiGAD = _jadwalData?['gad7']?['is_waiting'] == false;
         }
       } catch (_) {}
 
@@ -104,14 +114,14 @@ class _DashboardPageState extends State<DashboardPage> {
               const SizedBox(height: 24),
               if (_harusIsiTD)
                 _modalButton(Icons.bloodtype_rounded, 'Isi Tekanan Darah', AppTheme.danger, () {
-                  Navigator.pop(ctx);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const TekananDarahPage()));
+                   Navigator.pop(ctx);
+                   Navigator.push(context, MaterialPageRoute(builder: (_) => const TekananDarahPage())).then((_) => _loadData());
                 }),
               if (_harusIsiTD && _harusIsiGAD) const SizedBox(height: 12),
               if (_harusIsiGAD)
                 _modalButton(Icons.psychology_rounded, 'Isi Kuesioner GAD-7', AppTheme.info, () {
-                  Navigator.pop(ctx);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const GAD7Page()));
+                   Navigator.pop(ctx);
+                   Navigator.push(context, MaterialPageRoute(builder: (_) => const GAD7Page())).then((_) => _loadData());
                 }),
               const SizedBox(height: 12),
               TextButton(
@@ -121,6 +131,39 @@ class _DashboardPageState extends State<DashboardPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showNotTimeDialog(String title, String? nextDate) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.timer_rounded, color: AppTheme.accentWarm),
+            const SizedBox(width: 10),
+            Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Anda sudah melakukan pengisian untuk jadwal ini.', style: TextStyle(color: AppTheme.textDark)),
+            const SizedBox(height: 12),
+            Text('Jadwal pengisian berikutnya:', style: TextStyle(color: AppTheme.textLight, fontSize: 13)),
+            const SizedBox(height: 4),
+            Text(nextDate ?? 'Segera', style: const TextStyle(fontWeight: FontWeight.w700, color: AppTheme.primary)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Mengerti', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
       ),
     );
   }
@@ -144,58 +187,68 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading && _userData == null && _riwayatTD.isEmpty) {
+      return const Scaffold(
+        backgroundColor: AppTheme.scaffoldBg,
+        body: Center(child: CircularProgressIndicator(color: AppTheme.primary)),
+      );
+    }
+    
     final name = _userData?['nama_lengkap'] ?? 'Pengguna';
     final firstName = name.split(' ').first;
 
-    return RefreshIndicator(
-      color: AppTheme.primary,
-      onRefresh: _loadData,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(firstName, name),
-            const SizedBox(height: 20),
+    return Scaffold(
+      backgroundColor: AppTheme.scaffoldBg,
+      body: RefreshIndicator(
+        color: AppTheme.primary,
+        onRefresh: _loadData,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(firstName, name),
+              const SizedBox(height: 20),
 
-            // Reminder cards
-            if (_harusIsiTD || _harusIsiGAD) ...[
-              _sectionTitle('⏰ Pengingat'),
-              if (_harusIsiTD) _buildReminderCard(
-                'Tekanan Darah',
-                'Saatnya mengisi data tekanan darah Anda',
-                Icons.bloodtype_rounded,
-                AppTheme.danger,
-              ),
-              if (_harusIsiGAD) _buildReminderCard(
-                'Kuesioner GAD-7',
-                'Saatnya mengisi kuesioner kesehatan mental',
-                Icons.psychology_rounded,
-                AppTheme.info,
-              ),
-              const SizedBox(height: 16),
+              // Reminder cards
+              if (_harusIsiTD || _harusIsiGAD) ...[
+                _sectionTitle('⏰ Pengingat'),
+                if (_harusIsiTD) _buildReminderCard(
+                  'Tekanan Darah',
+                  'Saatnya mengisi data tekanan darah Anda',
+                  Icons.bloodtype_rounded,
+                  AppTheme.danger,
+                ),
+                if (_harusIsiGAD) _buildReminderCard(
+                  'Kuesioner GAD-7',
+                  'Saatnya mengisi kuesioner kesehatan mental',
+                  Icons.psychology_rounded,
+                  AppTheme.info,
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              _sectionTitle('📊 Status Kesehatan'),
+              _buildHealthStatusCards(),
+
+              const SizedBox(height: 24),
+
+              _sectionTitle('⚡ Aksi Cepat'),
+              _buildQuickActions(),
+
+              const SizedBox(height: 32),
+
+              _sectionTitle('📈 Riwayat Tekanan Darah (7 Terakhir)'),
+              _buildTDHistory(),
+
+              const SizedBox(height: 32),
+
+              _sectionTitle('📉 Riwayat GAD-7 (7 Terakhir)'),
+              _buildGADHistory(),
+
+              const SizedBox(height: 40),
             ],
-
-            _sectionTitle('📊 Status Kesehatan'),
-            _buildHealthStatusCards(),
-
-            const SizedBox(height: 24),
-
-            _sectionTitle('⚡ Aksi Cepat'),
-            _buildQuickActions(),
-
-            const SizedBox(height: 32),
-
-            _sectionTitle('📈 Riwayat Tekanan Darah (7 Terakhir)'),
-            _buildTDHistory(),
-
-            const SizedBox(height: 32),
-
-            _sectionTitle('📈 Riwayat GAD-7 (7 Terakhir)'),
-            _buildGADHistory(),
-
-            const SizedBox(height: 40),
-          ],
+          ),
         ),
       ),
     );
@@ -217,20 +270,30 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Widget _buildHeader(String firstName, String fullName) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      decoration: const BoxDecoration(
+      width: double.infinity,
+      height: 170,
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+      decoration: BoxDecoration(
         gradient: AppTheme.headerGradient,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(32),
-          bottomRight: Radius.circular(32),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(40),
+          bottomRight: Radius.circular(40),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primary.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(height: 12),
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
                   child: Column(
@@ -240,16 +303,18 @@ class _DashboardPageState extends State<DashboardPage> {
                         'Halo, $firstName! 👋',
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 30,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -1.2,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Pantau kesehatan Anda hari ini',
                         style: TextStyle(
-                          color: Colors.white.withAlpha(200),
-                          fontSize: 14,
+                          color: Colors.white.withAlpha(210),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w400,
                         ),
                       ),
                     ],
@@ -258,10 +323,11 @@ class _DashboardPageState extends State<DashboardPage> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(50),
-                    borderRadius: BorderRadius.circular(16),
+                    color: Colors.white.withAlpha(40),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.white.withAlpha(30)),
                   ),
-                  child: const Icon(Icons.eco_rounded, color: Colors.white, size: 32),
+                  child: const Icon(Icons.eco_rounded, color: Colors.white, size: 28),
                 ),
               ],
             ),
@@ -315,10 +381,28 @@ class _DashboardPageState extends State<DashboardPage> {
       ));
     }
 
-    final tekananDarah = _statusKesehatan?['tekanan_darah'] ?? '-/-';
-    final kategoriTD = _statusKesehatan?['kategori_td'] ?? '-';
-    final skorGAD = _statusKesehatan?['skor_gad']?.toString() ?? '-';
-    final kategoriGAD = _statusKesehatan?['kategori_gad'] ?? '-';
+    // Try to get latest from history first for more accurate real-time update
+    String tekananDarah = '-/-';
+    String kategoriTD = '-';
+    if (_riwayatTD.isNotEmpty) {
+      final latest = _riwayatTD.first;
+      tekananDarah = '${latest['systolic'] ?? '-'}/${latest['diastolic'] ?? '-'}';
+      kategoriTD = latest['kategori'] ?? '-';
+    } else if (_statusKesehatan != null) {
+      tekananDarah = _statusKesehatan?['tekanan_darah'] ?? '-/-';
+      kategoriTD = _statusKesehatan?['kategori_td'] ?? '-';
+    }
+
+    String skorGAD = '-';
+    String kategoriGAD = '-';
+    if (_riwayatGAD.isNotEmpty) {
+      final latest = _riwayatGAD.first;
+      skorGAD = (latest['skor'] ?? latest['total_skor'] ?? '-').toString();
+      kategoriGAD = latest['kategori'] ?? '-';
+    } else if (_statusKesehatan != null) {
+      skorGAD = _statusKesehatan?['skor_gad']?.toString() ?? '-';
+      kategoriGAD = _statusKesehatan?['kategori_gad'] ?? '-';
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -326,18 +410,18 @@ class _DashboardPageState extends State<DashboardPage> {
         children: [
           Expanded(child: _buildStatusCard(
             'Tekanan Darah',
-            tekananDarah.toString(),
-            _formatKategori(kategoriTD.toString()),
+            tekananDarah,
+            _formatKategori(kategoriTD),
             Icons.bloodtype_rounded,
-            _getKategoriColor(kategoriTD.toString()),
+            _getKategoriColor(kategoriTD),
           )),
           const SizedBox(width: 12),
           Expanded(child: _buildStatusCard(
             'GAD-7',
             'Skor: $skorGAD',
-            _formatKategori(kategoriGAD.toString()),
+            _formatKategori(kategoriGAD),
             Icons.psychology_rounded,
-            _getGADColor(kategoriGAD.toString()),
+            _getGADColor(kategoriGAD),
           )),
         ],
       ),
@@ -348,9 +432,16 @@ class _DashboardPageState extends State<DashboardPage> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: AppTheme.shadowMd,
+        color: color.withAlpha(15),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: color.withAlpha(40), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: color.withAlpha(20),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -360,8 +451,8 @@ class _DashboardPageState extends State<DashboardPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: color.withAlpha(30),
-                  borderRadius: BorderRadius.circular(10),
+                  color: color.withAlpha(40),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: color, size: 20),
               ),
@@ -369,20 +460,20 @@ class _DashboardPageState extends State<DashboardPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: color.withAlpha(25),
+                  color: color,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   category,
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color),
+                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Text(title, style: const TextStyle(fontSize: 12, color: AppTheme.textLight, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 16),
+          Text(title, style: TextStyle(fontSize: 12, color: color.withOpacity(0.7), fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
-          Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
+          Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: color, letterSpacing: -0.5)),
         ],
       ),
     );
@@ -392,53 +483,71 @@ class _DashboardPageState extends State<DashboardPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: GridView.count(
-        crossAxisCount: 4,
-        crossAxisSpacing: 12,
+        crossAxisCount: 3,
+        crossAxisSpacing: 16,
         mainAxisSpacing: 12,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         children: [
-          _buildActionItem(Icons.bloodtype_rounded, 'Tensi', AppTheme.danger),
-          _buildActionItem(Icons.psychology_rounded, 'GAD-7', AppTheme.info),
-          _buildActionItem(Icons.chat_bubble_rounded, 'Chat', AppTheme.accent),
-          _buildActionItem(Icons.school_rounded, 'Edukasi', AppTheme.accentWarm),
+          _buildActionItem(Icons.bloodtype_rounded, 'Tensi', AppTheme.danger, () {
+            if (_harusIsiTD) {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const TekananDarahPage())).then((_) => _loadData());
+            } else {
+              _showNotTimeDialog('Tekanan Darah', _jadwalData?['td']?['next_cek']);
+            }
+          }),
+          _buildActionItem(Icons.psychology_rounded, 'GAD-7', AppTheme.info, () {
+            if (_harusIsiGAD) {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const GAD7Page())).then((_) => _loadData());
+            } else {
+              _showNotTimeDialog('Kuesioner GAD-7', _jadwalData?['gad7']?['next_cek']);
+            }
+          }),
+          _buildActionItem(Icons.water_drop_rounded, 'Reproduksi', const Color(0xFFAB47BC), () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const ReproduksiPage())).then((_) => _loadData());
+          }),
         ],
       ),
     );
   }
 
-  Widget _buildActionItem(IconData icon, String label, Color color) {
+  Widget _buildActionItem(IconData icon, String label, Color color, VoidCallback onTap) {
     return GestureDetector(
-      onTap: () {},
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: AppTheme.shadowSm,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
+      onTap: onTap,
+      child: Column(
+        children: [
+          Expanded(
+            child: Container(
+              width: double.infinity,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [color.withAlpha(40), color.withAlpha(12)],
-                ),
-                borderRadius: BorderRadius.circular(12),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: AppTheme.shadowSm,
               ),
-              child: Icon(icon, color: color, size: 24),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withAlpha(20),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textMedium),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppTheme.textMedium),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
+
+
 
   Widget _buildTDHistory() {
     if (_isLoading) return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
