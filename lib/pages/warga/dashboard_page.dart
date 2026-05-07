@@ -327,7 +327,14 @@ class _DashboardPageState extends State<DashboardPage> {
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(color: Colors.white.withAlpha(30)),
                   ),
-                  child: const Icon(Icons.eco_rounded, color: Colors.white, size: 28),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      width: 32,
+                      height: 32,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
               ],
             ),

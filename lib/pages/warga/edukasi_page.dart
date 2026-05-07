@@ -1,7 +1,8 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+
 import 'package:url_launcher/url_launcher.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import '../../services/api_service.dart';
@@ -385,66 +386,66 @@ class YoutubeVideoItem extends StatelessWidget {
   }
 
   void _showVideoModal(BuildContext context, String videoId) {
-    final controller = YoutubePlayerController.fromVideoId(
-      videoId: videoId,
-      autoPlay: true,
-      params: const YoutubePlayerParams(
-        showControls: true,
-        showFullscreenButton: true,
+    final controller = YoutubePlayerController(
+      initialVideoId: videoId,
+      flags: const YoutubePlayerFlags(
+        autoPlay: true,
+        mute: false,
+        disableDragSeek: false,
+        loop: false,
+        isLive: false,
+        forceHD: false,
+        enableCaption: true,
       ),
     );
 
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: YoutubePlayer(
-                controller: controller,
-                aspectRatio: 16 / 9,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
-              onPressed: () => Navigator.pop(ctx),
-              icon: const Icon(Icons.close),
-              label: const Text('Tutup Video'),
-            )
-          ]
+      builder: (ctx) => YoutubePlayerBuilder(
+        player: YoutubePlayer(
+          controller: controller,
+          showVideoProgressIndicator: true,
+          progressIndicatorColor: AppTheme.primary,
+          progressColors: const ProgressBarColors(
+            playedColor: AppTheme.primary,
+            handleColor: AppTheme.primary,
+          ),
         ),
+        builder: (context, player) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: player,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+                  onPressed: () {
+                    if (controller.value.isFullScreen) {
+                      controller.toggleFullScreenMode();
+                    }
+                    Navigator.pop(ctx);
+                  },
+                  icon: const Icon(Icons.close),
+                  label: const Text('Tutup Video'),
+                )
+              ]
+            ),
+          );
+        },
       ),
-    );
+    ).then((_) => controller.dispose());
   }
 
   @override
   Widget build(BuildContext context) {
     final url = videoData['link_embed'] ?? '';
-    String? videoId;
-    
-    // Simple regex to extract video ID
-    RegExp regExp = RegExp(
-      r"(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^""&?\/\s]{11})",
-      caseSensitive: false,
-      multiLine: false,
-    );
-    
-    final match = regExp.firstMatch(url);
-    if (match != null && match.groupCount >= 1) {
-      videoId = match.group(1);
-    }
-
-    if (videoId == null && url.contains('/embed/')) {
-      final parts = url.split('/embed/');
-      if (parts.length > 1) {
-        videoId = parts[1].split('?').first;
-      }
-    }
+    final String? videoId = YoutubePlayer.convertUrlToId(url);
 
     return InkWell(
       onTap: () {

@@ -57,6 +57,16 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       final result = await ApiService().login(nik, password);
       if (mounted) {
         if (result['success'] == true) {
+          final user = result['data']['user'];
+          final role = user['role']?.toString().toLowerCase();
+
+          if (role == 'admin' || role == 'kader') {
+            ApiService().clearSession();
+            AppToast.error(context, 'Akses ditolak. Admin dan Kader hanya dapat login melalui Web.');
+            setState(() => _isLoading = false);
+            return;
+          }
+
           AppToast.success(context, 'Login Berhasil!');
           Navigator.pushReplacementNamed(context, '/home');
         } else {
@@ -77,76 +87,86 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Container(
-          height: size.height,
-          width: size.width,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                AppTheme.primary.withOpacity(0.08),
-                Colors.white,
-                AppTheme.primarySoft.withOpacity(0.08),
-              ],
-            ),
-          ),
-          child: FadeTransition(
-            opacity: _fadeAnim,
-            child: SlideTransition(
-              position: _slideAnim,
-              child: Column(
-                children: [
-                  const SizedBox(height: 80),
-                  _buildHeader(),
-                  const SizedBox(height: 48),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 30),
-                    child: Column(
-                      children: [
-                        _buildTextField(
-                          controller: _nikController,
-                          label: 'NIK',
-                          icon: Icons.badge_outlined,
-                          hint: 'Masukkan NIK Anda',
-                          keyboardType: TextInputType.number,
-                        ),
-                        const SizedBox(height: 20),
-                        _buildTextField(
-                          controller: _passwordController,
-                          label: 'Password',
-                          icon: Icons.lock_outline_rounded,
-                          hint: 'Masukkan password',
-                          isPassword: true,
-                          obscureText: _obscurePassword,
-                          onToggleVisibility: () {
-                            setState(() => _obscurePassword = !_obscurePassword);
-                          },
-                        ),
-                        const SizedBox(height: 36),
-                        _buildLoginButton(),
-                        const SizedBox(height: 30),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight,
+              ),
+              child: IntrinsicHeight(
+                child: Container(
+                  width: size.width,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        AppTheme.primary.withOpacity(0.08),
+                        Colors.white,
+                        AppTheme.primarySoft.withOpacity(0.08),
                       ],
                     ),
                   ),
-                  const Spacer(),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 32),
-                    child: Text(
-                      'TaniSehat v1.0',
-                      style: TextStyle(
-                        color: AppTheme.textLight,
-                        fontSize: 12,
-                        letterSpacing: 0.5,
+                  child: FadeTransition(
+                    opacity: _fadeAnim,
+                    child: SlideTransition(
+                      position: _slideAnim,
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 80),
+                          _buildHeader(),
+                          const SizedBox(height: 48),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 30),
+                            child: Column(
+                              children: [
+                                _buildTextField(
+                                  controller: _nikController,
+                                  label: 'NIK',
+                                  icon: Icons.badge_outlined,
+                                  hint: 'Masukkan NIK Anda',
+                                  keyboardType: TextInputType.number,
+                                ),
+                                const SizedBox(height: 20),
+                                _buildTextField(
+                                  controller: _passwordController,
+                                  label: 'Password',
+                                  icon: Icons.lock_outline_rounded,
+                                  hint: 'Masukkan password',
+                                  isPassword: true,
+                                  obscureText: _obscurePassword,
+                                  onToggleVisibility: () {
+                                    setState(() => _obscurePassword = !_obscurePassword);
+                                  },
+                                ),
+                                const SizedBox(height: 36),
+                                _buildLoginButton(),
+                                const SizedBox(height: 30),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 32),
+                            child: Text(
+                              'TaniSehat v1.0',
+                              style: TextStyle(
+                                color: AppTheme.textLight,
+                                fontSize: 12,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -167,7 +187,14 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
               ),
             ],
           ),
-          child: const Icon(Icons.eco_rounded, size: 52, color: Colors.white),
+          child: ClipOval(
+            child: Image.asset(
+              'assets/images/logo.png',
+              width: 64,
+              height: 64,
+              fit: BoxFit.cover,
+            ),
+          ),
         ),
         const SizedBox(height: 24),
         const Text(
