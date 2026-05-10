@@ -510,9 +510,10 @@ class _DashboardPageState extends State<DashboardPage> {
               _showNotTimeDialog('Kuesioner GAD-7', _jadwalData?['gad7']?['next_cek']);
             }
           }),
-          _buildActionItem(Icons.water_drop_rounded, 'Reproduksi', const Color(0xFFAB47BC), () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const ReproduksiPage())).then((_) => _loadData());
-          }),
+          if (_userData?['jenis_kelamin']?.toString().toLowerCase() == 'perempuan')
+            _buildActionItem(Icons.water_drop_rounded, 'Reproduksi', const Color(0xFFAB47BC), () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const ReproduksiPage())).then((_) => _loadData());
+            }),
         ],
       ),
     );

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
@@ -26,18 +27,44 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   bool _isLoading = true;
   bool _isSending = false;
   List<dynamic> _messages = [];
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
     _loadMessages();
+    _startTimer();
   }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      _loadMessagesBackground();
+    });
+  }
+
+  Future<void> _loadMessagesBackground() async {
+    try {
+      final result = await _api.getConversationDetail(widget.conversationId);
+      if (result['success'] == true) {
+        final newMessages = result['data']['details'] ?? [];
+        if (newMessages.length != _messages.length) {
+          if (mounted) {
+            setState(() {
+              _messages = newMessages;
+            });
+            _scrollToBottom();
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadMessages() async {

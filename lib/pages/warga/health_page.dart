@@ -4,12 +4,16 @@ import '../../widgets/common_widgets.dart';
 import 'tekanan_darah_page.dart';
 import 'gad7_page.dart';
 import 'reproduksi_page.dart';
+import '../../services/api_service.dart';
 
 class HealthPage extends StatelessWidget {
   const HealthPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final user = ApiService().currentUser;
+    final isFemale = user?['jenis_kelamin']?.toString().toLowerCase() == 'perempuan';
+
     return Scaffold(
       body: Column(
         children: [
@@ -28,11 +32,13 @@ class HealthPage extends StatelessWidget {
                     'Isi kuesioner kesehatan mental',
                     const LinearGradient(colors: [Color(0xFF1E88E5), Color(0xFF42A5F5)]),
                     const GAD7Page()),
-                  const SizedBox(height: 14),
-                  _card(context, Icons.pregnant_woman_rounded, 'Reproduksi',
-                    'Catat data kesehatan reproduksi',
-                    const LinearGradient(colors: [Color(0xFFAB47BC), Color(0xFFCE93D8)]),
-                    const ReproduksiPage()),
+                  if (isFemale) ...[
+                    const SizedBox(height: 14),
+                    _card(context, Icons.pregnant_woman_rounded, 'Reproduksi',
+                      'Catat data kesehatan reproduksi',
+                      const LinearGradient(colors: [Color(0xFFAB47BC), Color(0xFFCE93D8)]),
+                      const ReproduksiPage()),
+                  ],
                 ],
               ),
             ),

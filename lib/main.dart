@@ -5,6 +5,8 @@ import 'theme/app_theme.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/home_page.dart';
 
+import 'services/api_service.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -15,12 +17,16 @@ Future<void> main() async {
   ));
 
   await dotenv.load(fileName: ".env");
+  
+  final api = ApiService();
+  await api.loadSession();
 
-  runApp(const MyApp());
+  runApp(MyApp(isLoggedIn: api.token != null));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool isLoggedIn;
+  const MyApp({super.key, required this.isLoggedIn});
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +34,7 @@ class MyApp extends StatelessWidget {
       title: 'TaniSehat',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
-      initialRoute: '/login',
+      initialRoute: isLoggedIn ? '/home' : '/login',
       routes: {
         '/login': (context) => const LoginPage(),
         '/home': (context) => const HomePage(),

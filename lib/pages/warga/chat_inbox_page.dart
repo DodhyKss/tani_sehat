@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
@@ -16,11 +17,36 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
   final _api = ApiService();
   bool _isLoading = true;
   List<dynamic> _conversations = [];
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
     _loadInbox();
+    _startTimer();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      _loadInboxBackground();
+    });
+  }
+
+  Future<void> _loadInboxBackground() async {
+    try {
+      final data = await _api.getInbox();
+      if (mounted) {
+        setState(() {
+          _conversations = data;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadInbox() async {

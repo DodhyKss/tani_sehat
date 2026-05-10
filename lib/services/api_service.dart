@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -24,6 +25,23 @@ class ApiService {
   Map<String, dynamic>? get currentUser => _currentUser;
   int? get userId => _currentUser?['id'];
 
+  Future<void> saveSession(String token, Map<String, dynamic> user) async {
+    _token = token;
+    _currentUser = user;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('token', token);
+    await prefs.setString('user', jsonEncode(user));
+  }
+
+  Future<void> loadSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    _token = prefs.getString('token');
+    final userStr = prefs.getString('user');
+    if (userStr != null) {
+      _currentUser = jsonDecode(userStr);
+    }
+  }
+
   void setToken(String token) {
     _token = token;
   }
@@ -32,9 +50,12 @@ class ApiService {
     _currentUser = user;
   }
 
-  void clearSession() {
+  Future<void> clearSession() async {
     _token = null;
     _currentUser = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('token');
+    await prefs.remove('user');
   }
 
   Map<String, String> get _headers => {
@@ -55,8 +76,7 @@ class ApiService {
     );
     final data = jsonDecode(response.body);
     if (response.statusCode == 200 && data['success'] == true) {
-      _token = data['data']['token'];
-      _currentUser = data['data']['user'];
+      await saveSession(data['data']['token'], data['data']['user']);
     }
     return data;
   }
@@ -79,7 +99,7 @@ class ApiService {
       headers: _headers,
     );
     final data = jsonDecode(response.body);
-    clearSession();
+    await clearSession();
     return data;
   }
 
