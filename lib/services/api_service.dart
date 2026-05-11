@@ -17,6 +17,9 @@ class ApiService {
   // Global refresh notifier
   static final ValueNotifier<int> refreshNotifier = ValueNotifier<int>(0);
   
+  // Auth state notifier — fires when token becomes invalid
+  static final ValueNotifier<bool> authNotifier = ValueNotifier<bool>(true);
+  
   void notifyRefresh() {
     refreshNotifier.value++;
   }
@@ -42,6 +45,33 @@ class ApiService {
     }
   }
 
+  /// Verify token is still valid by calling /me endpoint.
+  /// Returns true if token is valid, false otherwise.
+  Future<bool> validateToken() async {
+    if (_token == null) return false;
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/me'),
+        headers: _headers,
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          _currentUser = data['data'];
+          // Re-save session to keep data fresh
+          await saveSession(_token!, _currentUser!);
+          return true;
+        }
+      }
+      // Token invalid — clear session
+      await clearSession();
+      return false;
+    } catch (_) {
+      // Network error — keep the session, user might be offline
+      return _token != null;
+    }
+  }
+
   void setToken(String token) {
     _token = token;
   }
@@ -64,6 +94,16 @@ class ApiService {
         if (_token != null) 'Authorization': 'Bearer $_token',
       };
 
+  /// Wraps HTTP responses and handles 401 globally
+  Future<Map<String, dynamic>> _handleResponse(http.Response response) async {
+    if (response.statusCode == 401) {
+      await clearSession();
+      authNotifier.value = false;
+      return {'success': false, 'message': 'Sesi telah berakhir. Silakan login kembali.'};
+    }
+    return jsonDecode(response.body);
+  }
+
   // ========================
   //  AUTH
   // ========================
@@ -77,6 +117,7 @@ class ApiService {
     final data = jsonDecode(response.body);
     if (response.statusCode == 200 && data['success'] == true) {
       await saveSession(data['data']['token'], data['data']['user']);
+      authNotifier.value = true;
     }
     return data;
   }
@@ -86,7 +127,7 @@ class ApiService {
       Uri.parse('$baseUrl/me'),
       headers: _headers,
     );
-    final data = jsonDecode(response.body);
+    final data = await _handleResponse(response);
     if (response.statusCode == 200 && data['success'] == true) {
       _currentUser = data['data'];
     }
@@ -109,13 +150,13 @@ class ApiService {
 
   Future<List<dynamic>> getAdmins() async {
     final response = await http.get(Uri.parse('$baseUrl/admins'), headers: _headers);
-    final data = jsonDecode(response.body);
+    final data = await _handleResponse(response);
     return data['success'] == true ? data['data'] : [];
   }
 
   Future<List<dynamic>> getKaders() async {
     final response = await http.get(Uri.parse('$baseUrl/kaders'), headers: _headers);
-    final data = jsonDecode(response.body);
+    final data = await _handleResponse(response);
     return data['success'] == true ? data['data'] : [];
   }
 
@@ -125,12 +166,12 @@ class ApiService {
       headers: _headers,
       body: jsonEncode({'receiver_id': receiverId}),
     );
-    return jsonDecode(response.body);
+    return _handleResponse(response);
   }
 
   Future<List<dynamic>> getInbox() async {
     final response = await http.get(Uri.parse('$baseUrl/messages'), headers: _headers);
-    final data = jsonDecode(response.body);
+    final data = await _handleResponse(response);
     return data['success'] == true ? data['data'] : [];
   }
 
@@ -139,7 +180,7 @@ class ApiService {
       Uri.parse('$baseUrl/messages/$conversationId'),
       headers: _headers,
     );
-    return jsonDecode(response.body);
+    return _handleResponse(response);
   }
 
   Future<Map<String, dynamic>> sendMessage(int conversationId, String message) async {
@@ -148,7 +189,7 @@ class ApiService {
       headers: _headers,
       body: jsonEncode({'message': message}),
     );
-    return jsonDecode(response.body);
+    return _handleResponse(response);
   }
 
   Future<Map<String, dynamic>> deleteMessage(int messageId) async {
@@ -156,7 +197,7 @@ class ApiService {
       Uri.parse('$baseUrl/messages/detail/$messageId'),
       headers: _headers,
     );
-    return jsonDecode(response.body);
+    return _handleResponse(response);
   }
 
   // ========================
@@ -168,12 +209,12 @@ class ApiService {
       Uri.parse('$baseUrl/status-kesehatan/cek-jadwal?jenis=$jenis'),
       headers: _headers,
     );
-    return jsonDecode(response.body);
+    return _handleResponse(response);
   }
 
   Future<List<dynamic>> getKuesionerGAD() async {
     final response = await http.get(Uri.parse('$baseUrl/gad/kuesioner'), headers: _headers);
-    final data = jsonDecode(response.body);
+    final data = await _handleResponse(response);
     return data['success'] == true ? data['data'] : [];
   }
 
@@ -183,7 +224,7 @@ class ApiService {
       headers: _headers,
       body: jsonEncode({'systolic': systolic, 'diastolic': diastolic}),
     );
-    final data = jsonDecode(response.body);
+    final data = await _handleResponse(response);
     if (data['success'] == true) notifyRefresh();
     return data;
   }
@@ -194,20 +235,20 @@ class ApiService {
       headers: _headers,
       body: jsonEncode({'skor': skor, 'jawaban': jawaban}),
     );
-    final data = jsonDecode(response.body);
+    final data = await _handleResponse(response);
     if (data['success'] == true) notifyRefresh();
     return data;
   }
 
   Future<List<dynamic>> getRiwayatTD() async {
     final response = await http.get(Uri.parse('$baseUrl/tekanan-darah'), headers: _headers);
-    final data = jsonDecode(response.body);
+    final data = await _handleResponse(response);
     return data['success'] == true ? (data['data']['data'] ?? []) : [];
   }
 
   Future<List<dynamic>> getRiwayatGAD() async {
     final response = await http.get(Uri.parse('$baseUrl/gad'), headers: _headers);
-    final data = jsonDecode(response.body);
+    final data = await _handleResponse(response);
     return data['success'] == true ? (data['data']['data'] ?? []) : [];
   }
 
@@ -217,7 +258,7 @@ class ApiService {
 
   Future<List<dynamic>> getReproduksi() async {
     final response = await http.get(Uri.parse('$baseUrl/reproduksi'), headers: _headers);
-    final data = jsonDecode(response.body);
+    final data = await _handleResponse(response);
     if (data['success'] == true) {
       // Laravel pagination returns the list in data['data']['data']
       if (data['data'] is Map && data['data']['data'] is List) {
@@ -240,7 +281,7 @@ class ApiService {
         'tgl_menstruasi': tglMenstruasi,
       }),
     );
-    final data = jsonDecode(response.body);
+    final data = await _handleResponse(response);
     if (data['success'] == true) notifyRefresh();
     return data;
   }
@@ -250,7 +291,7 @@ class ApiService {
       Uri.parse('$baseUrl/reproduksi/$id'),
       headers: _headers,
     );
-    return jsonDecode(response.body);
+    return _handleResponse(response);
   }
 
   // ========================
@@ -262,30 +303,30 @@ class ApiService {
     if (kategoriTd != null) url += 'kategori_td=$kategoriTd&';
     if (kategoriGad != null) url += 'kategori_gad=$kategoriGad';
     final response = await http.get(Uri.parse(url), headers: _headers);
-    return jsonDecode(response.body);
+    return _handleResponse(response);
   }
 
   Future<List<dynamic>> getMateri() async {
     final response = await http.get(Uri.parse('$baseUrl/materi'), headers: _headers);
-    final data = jsonDecode(response.body);
+    final data = await _handleResponse(response);
     return data['success'] == true ? data['data'] : [];
   }
 
   Future<List<dynamic>> getVideo() async {
     final response = await http.get(Uri.parse('$baseUrl/video'), headers: _headers);
-    final data = jsonDecode(response.body);
+    final data = await _handleResponse(response);
     return data['success'] == true ? data['data'] : [];
   }
 
   Future<List<dynamic>> getGambar() async {
     final response = await http.get(Uri.parse('$baseUrl/gambar'), headers: _headers);
-    final data = jsonDecode(response.body);
+    final data = await _handleResponse(response);
     return data['success'] == true ? data['data'] : [];
   }
 
   Future<List<dynamic>> getOlahraga() async {
     final response = await http.get(Uri.parse('$baseUrl/olahraga'), headers: _headers);
-    final data = jsonDecode(response.body);
+    final data = await _handleResponse(response);
     return data['success'] == true ? data['data'] : [];
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import '../../utils/responsive.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -84,7 +85,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    Responsive.init(context);
 
     return Scaffold(
       body: LayoutBuilder(
@@ -96,7 +97,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
               ),
               child: IntrinsicHeight(
                 child: Container(
-                  width: size.width,
+                  width: double.infinity,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
@@ -114,11 +115,11 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                       position: _slideAnim,
                       child: Column(
                         children: [
-                          const SizedBox(height: 80),
+                          SizedBox(height: Responsive.h(60)),
                           _buildHeader(),
-                          const SizedBox(height: 48),
+                          SizedBox(height: Responsive.h(36)),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 30),
+                            padding: EdgeInsets.symmetric(horizontal: Responsive.pad(30)),
                             child: Column(
                               children: [
                                 _buildTextField(
@@ -128,7 +129,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                   hint: 'Masukkan NIK Anda',
                                   keyboardType: TextInputType.number,
                                 ),
-                                const SizedBox(height: 20),
+                                SizedBox(height: Responsive.h(20)),
                                 _buildTextField(
                                   controller: _passwordController,
                                   label: 'Password',
@@ -140,20 +141,20 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                     setState(() => _obscurePassword = !_obscurePassword);
                                   },
                                 ),
-                                const SizedBox(height: 36),
+                                SizedBox(height: Responsive.h(36)),
                                 _buildLoginButton(),
-                                const SizedBox(height: 30),
+                                SizedBox(height: Responsive.h(30)),
                               ],
                             ),
                           ),
                           const Spacer(),
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 32),
+                            padding: EdgeInsets.only(bottom: Responsive.h(32)),
                             child: Text(
                               'TaniSehat v1.0',
                               style: TextStyle(
                                 color: AppTheme.textLight,
-                                fontSize: 12,
+                                fontSize: Responsive.sp(12),
                                 letterSpacing: 0.5,
                               ),
                             ),
@@ -175,7 +176,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(22),
+          padding: EdgeInsets.all(Responsive.pad(18)),
           decoration: BoxDecoration(
             gradient: AppTheme.primaryGradient,
             shape: BoxShape.circle,
@@ -190,27 +191,27 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           child: ClipOval(
             child: Image.asset(
               'assets/images/logo.png',
-              width: 64,
-              height: 64,
+              width: Responsive.w(56),
+              height: Responsive.w(56),
               fit: BoxFit.cover,
             ),
           ),
         ),
-        const SizedBox(height: 24),
-        const Text(
+        SizedBox(height: Responsive.h(20)),
+        Text(
           'TaniSehat',
           style: TextStyle(
-            fontSize: 34,
+            fontSize: Responsive.sp(30),
             fontWeight: FontWeight.w800,
             letterSpacing: 1.2,
             color: AppTheme.primary,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: Responsive.h(8)),
         Text(
           'Solusi Kesehatan Petani Indonesia',
           style: TextStyle(
-            fontSize: 15,
+            fontSize: Responsive.sp(14),
             color: AppTheme.textMedium.withOpacity(0.7),
             letterSpacing: 0.3,
           ),
@@ -234,44 +235,44 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       children: [
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 13,
+          style: TextStyle(
+            fontSize: Responsive.sp(13),
             fontWeight: FontWeight.w700,
             color: AppTheme.primary,
             letterSpacing: 0.5,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: Responsive.h(8)),
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(Responsive.radius(14)),
             boxShadow: AppTheme.shadowSm,
           ),
           child: TextField(
             controller: controller,
             obscureText: obscureText,
             keyboardType: keyboardType,
-            style: const TextStyle(fontSize: 15, color: AppTheme.textDark),
+            style: TextStyle(fontSize: Responsive.sp(15), color: AppTheme.textDark),
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-              prefixIcon: Icon(icon, color: AppTheme.primarySoft, size: 22),
+              hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: Responsive.sp(14)),
+              prefixIcon: Icon(icon, color: AppTheme.primarySoft, size: Responsive.icon(22)),
               suffixIcon: isPassword
                   ? IconButton(
                       icon: Icon(
                         obscureText ? Icons.visibility_off_rounded : Icons.visibility_rounded,
                         color: Colors.grey.shade400,
-                        size: 22,
+                        size: Responsive.icon(22),
                       ),
                       onPressed: onToggleVisibility,
                     )
                   : null,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(Responsive.radius(14)),
                 borderSide: BorderSide.none,
               ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 18),
+              contentPadding: EdgeInsets.symmetric(vertical: Responsive.h(16)),
             ),
           ),
         ),
@@ -283,9 +284,9 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       width: double.infinity,
-      height: 56,
+      height: Responsive.h(52),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(Responsive.radius(16)),
         gradient: _isLoading ? null : AppTheme.primaryGradient,
         color: _isLoading ? Colors.grey.shade300 : null,
         boxShadow: _isLoading ? [] : AppTheme.shadowLg,
@@ -295,18 +296,18 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.radius(16))),
         ),
         child: _isLoading
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+            ? SizedBox(
+                width: Responsive.w(24),
+                height: Responsive.w(24),
+                child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
               )
-            : const Text(
+            : Text(
                 'MASUK',
                 style: TextStyle(
-                  fontSize: 17,
+                  fontSize: Responsive.sp(17),
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
                   letterSpacing: 1.5,

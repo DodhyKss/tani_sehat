@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/api_service.dart';
+import '../utils/responsive.dart';
 import 'warga/dashboard_page.dart';
 import 'warga/chat_inbox_page.dart';
 import 'warga/health_page.dart';
@@ -40,6 +41,8 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    Responsive.init(context);
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
@@ -55,15 +58,15 @@ class _HomePageState extends State<HomePage> {
               offset: const Offset(0, -4),
             ),
           ],
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(Responsive.radius(24)),
+            topRight: Radius.circular(Responsive.radius(24)),
           ),
         ),
         child: ClipRRect(
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(Responsive.radius(24)),
+            topRight: Radius.circular(Responsive.radius(24)),
           ),
           child: BottomNavigationBar(
             currentIndex: _currentIndex,
@@ -75,8 +78,9 @@ class _HomePageState extends State<HomePage> {
             backgroundColor: Colors.white,
             selectedItemColor: AppTheme.primary,
             unselectedItemColor: const Color(0xFF2D3436), // Clear dark color instead of grey
-            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+            selectedLabelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: Responsive.sp(11)),
+            unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: Responsive.sp(11)),
+            iconSize: Responsive.icon(24),
             items: [
               _buildNavItem(Icons.dashboard_rounded, 'Beranda'),
               _buildNavItem(Icons.favorite_rounded, 'Kesehatan'),
