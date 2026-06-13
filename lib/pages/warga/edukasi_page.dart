@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import '../../services/api_service.dart';
@@ -34,14 +34,17 @@ class _EdukasiPageState extends State<EdukasiPage> with SingleTickerProviderStat
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final meResult = await _api.getMe();
-      String? katTd, katGad;
-      if (meResult['success'] == true) {
-        final status = meResult['data']?['status_kesehatan'];
-        katTd = status?['kategori_td']; katGad = status?['kategori_gad'];
-      }
-      final result = await _api.getRekomendasi(kategoriTd: katTd, kategoriGad: katGad);
-      if (result['success'] == true) _rekomendasi = result['data'] ?? {};
+      final videos = await _api.getVideo();
+      final materis = await _api.getMateri();
+      final gambars = await _api.getGambar();
+      final olahragas = await _api.getOlahraga();
+
+      _rekomendasi = {
+        'videos': videos,
+        'materis': materis,
+        'gambars': gambars,
+        'olahragas': olahragas,
+      };
     } catch (_) {}
     if (mounted) setState(() => _isLoading = false);
   }
@@ -95,6 +98,9 @@ class _EdukasiPageState extends State<EdukasiPage> with SingleTickerProviderStat
           onTap: () {
             final path = m['file_path'] ?? '';
             if (path.isEmpty) return;
+            
+            _api.logFrekuensiEdukasi('materi');
+            
             final safePath = path.replaceAll(' ', '%20');
             _showPdfViewer(context, '${_api.baseUrl}/file?path=$safePath', m['judul'] ?? 'Materi');
           },
@@ -136,6 +142,9 @@ class _EdukasiPageState extends State<EdukasiPage> with SingleTickerProviderStat
         return InkWell(
           onTap: () {
             if (fullUrl.isEmpty) return;
+            
+            _api.logFrekuensiEdukasi('gambar');
+            
             showDialog(context: context, builder: (ctx) => Dialog(
               backgroundColor: Colors.transparent, insetPadding: EdgeInsets.all(Responsive.pad(16)),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -257,28 +266,48 @@ class YoutubeVideoItem extends StatelessWidget {
   }
 
   void _showVideoModal(BuildContext context, String videoId) {
-    final controller = YoutubePlayerController(initialVideoId: videoId, flags: const YoutubePlayerFlags(autoPlay: true, mute: false));
-    showDialog(context: context, builder: (ctx) => YoutubePlayerBuilder(
-      player: YoutubePlayer(controller: controller, showVideoProgressIndicator: true, progressIndicatorColor: AppTheme.primary, progressColors: const ProgressBarColors(playedColor: AppTheme.primary, handleColor: AppTheme.primary)),
-      builder: (context, player) => Dialog(
-        backgroundColor: Colors.transparent, insetPadding: EdgeInsets.all(Responsive.pad(16)),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ClipRRect(borderRadius: BorderRadius.circular(Responsive.radius(16)), child: player),
-          SizedBox(height: Responsive.h(16)),
-          ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white), onPressed: () { if (controller.value.isFullScreen) controller.toggleFullScreenMode(); Navigator.pop(ctx); }, icon: const Icon(Icons.close), label: const Text('Tutup Video')),
-        ]),
-      ),
-    )).then((_) => controller.dispose());
+    final controller = YoutubePlayerController.fromVideoId(
+      videoId: videoId,
+      autoPlay: true,
+      params: const YoutubePlayerParams(showFullscreenButton: true, showControls: true),
+    );
+    showDialog(context: context, builder: (ctx) => Dialog(
+      backgroundColor: Colors.transparent, insetPadding: EdgeInsets.all(Responsive.pad(16)),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(Responsive.radius(16)), 
+          child: YoutubePlayer(controller: controller)
+        ),
+        SizedBox(height: Responsive.h(16)),
+        ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white), onPressed: () { Navigator.pop(ctx); }, icon: const Icon(Icons.close), label: const Text('Tutup Video')),
+      ]),
+    )).then((_) => controller.close());
+  }
+
+  String? _extractVideoId(String url) {
+    if (url.isEmpty) return null;
+    if (url.toLowerCase().contains('<iframe') && url.toLowerCase().contains('src="')) {
+      final startIndex = url.toLowerCase().indexOf('src="') + 5;
+      final endIndex = url.indexOf('"', startIndex);
+      if (endIndex > startIndex) url = url.substring(startIndex, endIndex);
+    }
+    if (url.contains('youtu.be/')) return url.split('youtu.be/')[1].split('?')[0];
+    if (url.contains('v=')) return url.split('v=')[1].split('&')[0];
+    if (url.contains('embed/')) return url.split('embed/')[1].split('?')[0];
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     Responsive.init(context);
     final url = videoData['link_embed'] ?? '';
-    final String? videoId = YoutubePlayer.convertUrlToId(url);
+    final String? videoId = _extractVideoId(url);
     return InkWell(
       onTap: () {
-        if (videoId != null && videoId.isNotEmpty) _showVideoModal(context, videoId);
+        if (videoId != null && videoId.isNotEmpty) {
+          ApiService().logFrekuensiEdukasi('video');
+          _showVideoModal(context, videoId);
+        }
         else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Video tidak valid atau tidak didukung.')));
       },
       child: Container(

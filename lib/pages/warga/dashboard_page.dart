@@ -60,49 +60,10 @@ class _DashboardPageState extends State<DashboardPage> {
 
     if (mounted) {
       setState(() => _isLoading = false);
-      if (!_hasShownModal && (_harusIsiTD || _harusIsiGAD)) {
-        _hasShownModal = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) => _showReminderModal());
-      }
     }
   }
 
-  void _showReminderModal() {
-    Responsive.init(context);
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.radius(24))),
-        child: Padding(
-          padding: EdgeInsets.all(Responsive.pad(24)),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: EdgeInsets.all(Responsive.pad(16)),
-              decoration: BoxDecoration(color: AppTheme.warning.withAlpha(30), shape: BoxShape.circle),
-              child: Icon(Icons.notifications_active_rounded, color: AppTheme.warning, size: Responsive.icon(40)),
-            ),
-            SizedBox(height: Responsive.h(20)),
-            Text('Pengingat Kesehatan', style: TextStyle(fontSize: Responsive.sp(20), fontWeight: FontWeight.w800, color: AppTheme.textDark)),
-            SizedBox(height: Responsive.h(12)),
-            Text('Anda memiliki jadwal pengisian data kesehatan yang belum diselesaikan.', textAlign: TextAlign.center, style: TextStyle(fontSize: Responsive.sp(14), color: AppTheme.textMedium)),
-            SizedBox(height: Responsive.h(24)),
-            if (_harusIsiTD) _modalButton(Icons.bloodtype_rounded, 'Isi Tekanan Darah', AppTheme.danger, () {
-              Navigator.pop(ctx);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const TekananDarahPage())).then((_) => _loadData());
-            }),
-            if (_harusIsiTD && _harusIsiGAD) SizedBox(height: Responsive.h(12)),
-            if (_harusIsiGAD) _modalButton(Icons.psychology_rounded, 'Isi Kuesioner GAD-7', AppTheme.info, () {
-              Navigator.pop(ctx);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const GAD7Page())).then((_) => _loadData());
-            }),
-            SizedBox(height: Responsive.h(12)),
-            TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Nanti Saja', style: TextStyle(color: AppTheme.textLight, fontWeight: FontWeight.w600, fontSize: Responsive.sp(14)))),
-          ]),
-        ),
-      ),
-    );
-  }
+
 
   void _showNotTimeDialog(String title, String? nextDate) {
     showDialog(

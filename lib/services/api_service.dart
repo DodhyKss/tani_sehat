@@ -298,6 +298,17 @@ class ApiService {
   //  REKOMENDASI & EDUKASI
   // ========================
 
+  Future<void> logFrekuensiEdukasi(String jenis) async {
+    if (userId == null) return;
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/frekuensi'),
+        headers: _headers,
+        body: jsonEncode({'warga_id': userId, 'jenis_rekomendasi': jenis}),
+      );
+    } catch (_) {}
+  }
+
   Future<Map<String, dynamic>> getRekomendasi({String? kategoriTd, String? kategoriGad}) async {
     String url = '$baseUrl/rekomendasi?';
     if (kategoriTd != null) url += 'kategori_td=$kategoriTd&';
