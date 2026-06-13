@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import '../../services/api_service.dart';
@@ -266,22 +266,25 @@ class YoutubeVideoItem extends StatelessWidget {
   }
 
   void _showVideoModal(BuildContext context, String videoId) {
-    final controller = YoutubePlayerController.fromVideoId(
-      videoId: videoId,
-      autoPlay: true,
-      params: const YoutubePlayerParams(showFullscreenButton: true, showControls: true),
-    );
-    showDialog(context: context, builder: (ctx) => Dialog(
-      backgroundColor: Colors.transparent, insetPadding: EdgeInsets.all(Responsive.pad(16)),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(Responsive.radius(16)), 
-          child: YoutubePlayer(controller: controller)
+    final controller = YoutubePlayerController(initialVideoId: videoId, flags: const YoutubePlayerFlags(autoPlay: true, mute: false));
+    Navigator.push(context, MaterialPageRoute(builder: (ctx) => YoutubePlayerBuilder(
+      player: YoutubePlayer(controller: controller, showVideoProgressIndicator: true, progressIndicatorColor: AppTheme.primary, progressColors: const ProgressBarColors(playedColor: AppTheme.primary, handleColor: AppTheme.primary)),
+      builder: (context, player) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          iconTheme: const IconThemeData(color: Colors.white),
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () { 
+              if (controller.value.isFullScreen) controller.toggleFullScreenMode(); 
+              Navigator.pop(ctx); 
+            }
+          ),
         ),
-        SizedBox(height: Responsive.h(16)),
-        ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white), onPressed: () { Navigator.pop(ctx); }, icon: const Icon(Icons.close), label: const Text('Tutup Video')),
-      ]),
-    )).then((_) => controller.close());
+        body: Center(child: player),
+      ),
+    ))).then((_) => controller.dispose());
   }
 
   String? _extractVideoId(String url) {
