@@ -1,4 +1,9 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
@@ -173,13 +178,53 @@ class _TekananDarahPageState extends State<TekananDarahPage> with SingleTickerPr
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [Icon(icon, color: color, size: Responsive.icon(18)), SizedBox(width: Responsive.w(8)), Text(typeName, style: TextStyle(fontSize: Responsive.sp(13), fontWeight: FontWeight.w700))]),
       SizedBox(height: Responsive.h(6)),
-      ...items.take(1).map((item) => Padding(padding: EdgeInsets.only(left: Responsive.pad(26), bottom: Responsive.pad(4)),
-        child: Text('• ${item['judul'] ?? item['nama_olahraga'] ?? 'Item'}', style: TextStyle(fontSize: Responsive.sp(12), color: AppTheme.textMedium)))),
+      ...items.take(1).map((item) => InkWell(
+        onTap: () {
+          if (typeName == 'Materi') {
+             final path = item['file_path'] ?? '';
+             if (path.isEmpty) return;
+             final safePath = path.replaceAll(' ', '%20');
+             _showPdfViewer(context, '${_api.baseUrl}/file?path=$safePath', item['judul'] ?? 'Materi');
+          } else if (typeName == 'Video') {
+             final url = item['link_embed'] ?? '';
+             final videoId = _extractVideoId(url);
+             if (videoId != null && videoId.isNotEmpty) {
+               _showVideoModal(context, videoId);
+             } else {
+               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Video tidak valid atau tidak didukung.')));
+             }
+          } else if (typeName == 'Infografis') {
+             final imageUrl = item['file_path'] ?? item['url'] ?? '';
+             final fullUrl = imageUrl.isNotEmpty ? '${_api.baseUrl}/file?path=$imageUrl' : '';
+             if (fullUrl.isEmpty) return;
+             showDialog(context: context, builder: (ctx) => Dialog(
+               backgroundColor: Colors.transparent, insetPadding: EdgeInsets.all(Responsive.pad(16)),
+               child: Column(mainAxisSize: MainAxisSize.min, children: [
+                 ClipRRect(borderRadius: BorderRadius.circular(Responsive.radius(16)), child: Image.network(fullUrl, fit: BoxFit.contain)),
+                 SizedBox(height: Responsive.h(16)),
+                 ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white), onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close), label: const Text('Tutup')),
+               ]),
+             ));
+          }
+        },
+        child: Padding(padding: EdgeInsets.only(left: Responsive.pad(26), bottom: Responsive.pad(4)),
+          child: Row(
+            children: [
+               Expanded(child: Text('• ${item['judul'] ?? item['nama_olahraga'] ?? 'Item'}', style: TextStyle(fontSize: Responsive.sp(12), color: typeName != 'Olahraga' ? AppTheme.primary : AppTheme.textMedium, fontWeight: typeName != 'Olahraga' ? FontWeight.w600 : FontWeight.normal))),
+               if (typeName != 'Olahraga') Icon(Icons.open_in_new_rounded, size: Responsive.icon(12), color: AppTheme.primary)
+            ]
+          )
+        ),
+      )),
       SizedBox(height: Responsive.h(10)),
     ]);
   }
 
-  String _formatKategori(String k) { switch (k.toLowerCase()) { case 'normal': return 'Normal'; case 'pre_hipertensi': return 'Pra-Hipertensi'; case 'hipertensi': return 'Hipertensi'; default: return k; } }
+  String _formatKategori(String k) { 
+    if (k.toLowerCase() == 'tidak_salah_satunya') return 'Tidak Salah Satunya';
+    if (k.toLowerCase() == 'semua') return 'Semua';
+    switch (k.toLowerCase()) { case 'normal': return 'Normal'; case 'pre_hipertensi': return 'Pra-Hipertensi'; case 'hipertensi': return 'Hipertensi'; default: return k; } 
+  }
   Color _getKategoriColor(String k) { switch (k.toLowerCase()) { case 'normal': return AppTheme.success; case 'pre_hipertensi': return AppTheme.warning; case 'hipertensi': return AppTheme.danger; default: return AppTheme.primary; } }
 
   Widget _buildHistoryTab() {
@@ -204,5 +249,65 @@ class _TekananDarahPageState extends State<TekananDarahPage> with SingleTickerPr
         );
       },
     ));
+  }
+
+  void _showPdfViewer(BuildContext context, String url, String title) {
+    Navigator.push(context, MaterialPageRoute(builder: (context) => Scaffold(
+      appBar: AppBar(
+        title: Text(title, style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold)),
+        backgroundColor: AppTheme.primary, foregroundColor: Colors.white,
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
+        actions: [IconButton(icon: const Icon(Icons.open_in_browser), tooltip: 'Buka di Browser', onPressed: () async {
+          final uri = Uri.parse(url);
+          if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+        })],
+      ),
+      body: FutureBuilder<Uint8List>(
+        future: _fetchPdfBytes(url),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
+          if (snapshot.hasError) return Center(child: Padding(padding: EdgeInsets.all(Responsive.pad(24)), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.error_outline, size: Responsive.icon(48), color: AppTheme.danger),
+            SizedBox(height: Responsive.h(16)),
+            Text('Gagal memuat PDF: ${snapshot.error}', textAlign: TextAlign.center),
+            SizedBox(height: Responsive.h(24)),
+            ElevatedButton(onPressed: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication), child: const Text('Buka di Browser Saja')),
+          ])));
+          if (!snapshot.hasData) return const Center(child: Text('Tidak ada data PDF'));
+          return SfPdfViewer.memory(snapshot.data!);
+        },
+      ),
+    )));
+  }
+
+  Future<Uint8List> _fetchPdfBytes(String url) async {
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) return response.bodyBytes;
+    throw Exception('Server merespon dengan status: ${response.statusCode}');
+  }
+
+  void _showVideoModal(BuildContext context, String videoId) {
+    final controller = YoutubePlayerController(initialVideoId: videoId, flags: const YoutubePlayerFlags(autoPlay: true, mute: false));
+    Navigator.push(context, MaterialPageRoute(builder: (ctx) => YoutubePlayerBuilder(
+      player: YoutubePlayer(controller: controller, showVideoProgressIndicator: true, progressIndicatorColor: AppTheme.primary, progressColors: const ProgressBarColors(playedColor: AppTheme.primary, handleColor: AppTheme.primary)),
+      builder: (context, player) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(backgroundColor: Colors.black, iconTheme: const IconThemeData(color: Colors.white), leading: IconButton(icon: const Icon(Icons.close), onPressed: () { if (controller.value.isFullScreen) controller.toggleFullScreenMode(); Navigator.pop(ctx); })),
+        body: Center(child: player),
+      ),
+    ))).then((_) => controller.dispose());
+  }
+
+  String? _extractVideoId(String url) {
+    if (url.isEmpty) return null;
+    if (url.toLowerCase().contains('<iframe') && url.toLowerCase().contains('src="')) {
+      final startIndex = url.toLowerCase().indexOf('src="') + 5;
+      final endIndex = url.indexOf('"', startIndex);
+      if (endIndex > startIndex) url = url.substring(startIndex, endIndex);
+    }
+    if (url.contains('youtu.be/')) return url.split('youtu.be/')[1].split('?')[0];
+    if (url.contains('v=')) return url.split('v=')[1].split('&')[0];
+    if (url.contains('embed/')) return url.split('embed/')[1].split('?')[0];
+    return null;
   }
 }
